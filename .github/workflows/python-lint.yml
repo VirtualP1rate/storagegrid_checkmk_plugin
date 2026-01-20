@@ -29,16 +29,13 @@ jobs:
     - name: Lint with pylint
       run: |
         # Lint all Python files in the plugin
-        pylint cmk_addons/plugins/storagegrid/**/*.py --disable=C0114,C0115,C0116 --max-line-length=120
+        # Note: import-error is disabled because cmk modules are only available in CheckMK environment
+        pylint cmk_addons/plugins/storagegrid/**/*.py --disable=C0114,C0115,C0116,E0401 --max-line-length=120
       continue-on-error: true
     
-    - name: Test imports
+    - name: Check Python syntax
       run: |
-        # Test that all Python modules can be imported without errors
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_health"
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_capacity"
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_alerts"
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_s3"
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_resources"
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_tenants"
-        python -c "import sys; sys.path.insert(0, 'cmk_addons/plugins/storagegrid/agent_based'); import storagegrid_ilm"
+        # Verify Python syntax is valid by compiling all files
+        python -m py_compile cmk_addons/plugins/storagegrid/agent_based/*.py
+        python -m py_compile cmk_addons/plugins/storagegrid/rulesets/*.py
+        python -m py_compile cmk_addons/plugins/storagegrid/server_side_calls/*.py
