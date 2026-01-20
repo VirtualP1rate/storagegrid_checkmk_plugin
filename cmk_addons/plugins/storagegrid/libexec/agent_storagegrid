@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+"""
+CheckMK Special Agent for NetApp StorageGRID
+Compatible with CheckMK 2.4.0
+"""
+
+import sys
+import json
+import argparse
+import requests
+from datetime import datetime
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class StorageGridAPI:
+    """StorageGRID API Client"""
+
+    def __init__(self, host, username, password, verify_ssl=False, timeout=30):
+        self.host = host
+        self.base_url = f"https://{host}/api/v4"
+        self.verify_ssl = verify_ssl
+        self.timeout = timeout
+        self.token = None
+        self.authenticate(username, password)
+
+    def authenticate(self, username, password):
+        """Obtain bearer token"""
+        url = f"{self.base_url}/authorize"
+        payload = {
+            "username": username,
+            "password": password,
+            "cookie": False,
+            "csrfToken": False
+        }
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            self.token = response.json()['data']
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Authentication failed: {e}")
+
+    def _headers(self):
+        """Get request headers with authentication"""
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+    def _get(self, endpoint):
+        """Make GET request"""
+        url = f"{self.base_url}/{endpoint}"
+        try:
+            response = requests.get(
+                url,
+                headers=self._headers(),
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return response.json()['data']
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                raise Exception("Token expired or invalid")
+            raise
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"API request failed: {e}")
+
+    def get_node_health(self):
+        """Get node health (flat list of all nodes)"""
+        return self._get("grid/node-health")
+
+    def get_current_alerts(self):
+        """Get current active alerts"""
+        return self._get("grid/alerts")
+
+    def get_metrics(self, query):
+        """Get Prometheus metric instant query"""
+        from urllib.parse import quote
+        endpoint = f"grid/metric-query?query={quote(query)}"
+        return self._get(endpoint)
+
+    def get_tenant_accounts(self):
+        """Get all tenant accounts"""
+        return self._get("grid/accounts")
+
+    def get_tenant_usage(self, account_id):
+        """Get tenant storage usage"""
+        return self._get(f"grid/accounts/{account_id}/usage")
+
+
+def output_checkmk_section(section_name, data):
+    """Output CheckMK agent section"""
+    print(f"<<<storagegrid_{section_name}:sep(0)>>>")
+    print(json.dumps(data))
+
+
+def check_grid_health(api):
+    """Check grid and node health with IP addresses"""
+    try:
+        nodes = api.get_node_health()
+        
+        # Fetch topology to get IP addresses
+        try:
+            topology_response = api._get("grid/health/topology")
+            ip_map = {}
+            
+            # Parse nested topology structure to extract IPs
+            def extract_ips(item):
+                if isinstance(item, dict):
+                    if 'id' in item and 'ip' in item:
+                        ip_map[item['id']] = item['ip']
+                    if 'children' in item:
+                        for child in item['children']:
+                            extract_ips(child)
+            
+            extract_ips(topology_response)
+        except:
+            ip_map = {}
+        
+        health_data = {
+            "timestamp": datetime.now().isoformat(),
+            "sites": []
+        }
+
+        # Group nodes by site
+        sites_dict = {}
+        for node in nodes:
+            site_id = node.get('siteId', '')
+            site_name = node.get('siteName', 'Unknown')
+            node_id = node.get('id', '')
+            
+            if site_id not in sites_dict:
+                sites_dict[site_id] = {
+                    "name": site_name,
+                    "id": site_id,
+                    "state": "connected",
+                    "nodes": []
+                }
+            
+            sites_dict[site_id]['nodes'].append({
+                "id": node_id,
+                "name": node.get('name', ''),
+                "type": node.get('type', 'unknown'),
+                "state": node.get('state', 'unknown'),
+                "severity": node.get('severity', 'unknown'),
+                "storageType": node.get('storageType', None),
+                "ip": ip_map.get(node_id, 'N/A')
+            })
+
+        health_data['sites'] = list(sites_dict.values())
+        output_checkmk_section("health", health_data)
+    except Exception as e:
+        output_checkmk_section("health", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "sites": []
+        })
+
+
+def check_alerts(api):
+    """Check active alerts"""
+    try:
+        alerts = api.get_current_alerts()
+        alert_data = {
+            "timestamp": datetime.now().isoformat(),
+            "alerts": []
+        }
+
+        for alert in alerts:
+            # Extract labels for node/site info
+            labels = alert.get('labels', {})
+            alert_data['alerts'].append({
+                "id": alert.get('id', ''),
+                "severity": labels.get('severity', 'unknown'),
+                "name": alert.get('name', labels.get('alertname', 'Unknown Alert')),
+                "node_id": labels.get('node_id', ''),
+                "node_name": labels.get('instance', ''),
+                "site": labels.get('site_name', ''),
+                "state": alert.get('status', 'unknown'),
+                "started": alert.get('startsAt', ''),
+                "annotations": alert.get('annotations', {})
+            })
+
+        output_checkmk_section("alerts", alert_data)
+    except Exception as e:
+        output_checkmk_section("alerts", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "alerts": []
+        })
+
+
+def check_storage_capacity(api):
+    """Check storage capacity metrics"""
+    metrics = {
+        "data_bytes": "storagegrid_storage_utilization_data_bytes",
+        "metadata_bytes": "storagegrid_storage_utilization_metadata_bytes",
+        "metadata_allowed_bytes": "storagegrid_storage_utilization_metadata_allowed_bytes",
+        "usable_space_bytes": "storagegrid_storage_utilization_usable_space_bytes",
+        "total_space_bytes": "storagegrid_storage_utilization_total_space_bytes"
+    }
+
+    capacity_data = {
+        "timestamp": datetime.now().isoformat()
+    }
+
+    try:
+        for key, query in metrics.items():
+            try:
+                result = api.get_metrics(query)
+                if result.get('result'):
+                    total = sum(float(r['value'][1]) for r in result['result'])
+                    capacity_data[key] = total
+                else:
+                    capacity_data[key] = None
+            except Exception:
+                capacity_data[key] = None
+
+        if capacity_data.get('data_bytes') is not None and capacity_data.get('usable_space_bytes') is not None:
+            if capacity_data['usable_space_bytes'] > 0:
+                capacity_data['data_percent'] = (
+                    capacity_data['data_bytes'] / capacity_data['usable_space_bytes']
+                ) * 100
+            else:
+                capacity_data['data_percent'] = 0
+
+        if capacity_data.get('metadata_bytes') is not None and capacity_data.get('metadata_allowed_bytes') is not None:
+            if capacity_data['metadata_allowed_bytes'] > 0:
+                capacity_data['metadata_percent'] = (
+                    capacity_data['metadata_bytes'] / capacity_data['metadata_allowed_bytes']
+                ) * 100
+            else:
+                capacity_data['metadata_percent'] = 0
+
+        output_checkmk_section("capacity", capacity_data)
+    except Exception as e:
+        output_checkmk_section("capacity", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        })
+
+
+def check_s3_performance(api):
+    """Check S3 performance metrics"""
+    metrics = {
+        "successful_rate": "storagegrid_s3_successful_request_rate",
+        "failed_rate": "storagegrid_s3_failed_request_rate"
+    }
+
+    performance_data = {
+        "timestamp": datetime.now().isoformat()
+    }
+
+    try:
+        for key, query in metrics.items():
+            try:
+                result = api.get_metrics(query)
+                if result.get('result'):
+                    total = sum(float(r['value'][1]) for r in result['result'])
+                    performance_data[key] = total
+                else:
+                    performance_data[key] = None
+            except Exception:
+                performance_data[key] = None
+
+        if (performance_data.get('successful_rate') is not None and
+                performance_data.get('failed_rate') is not None):
+            total_rate = performance_data['successful_rate'] + performance_data['failed_rate']
+            if total_rate > 0:
+                performance_data['error_percent'] = (
+                    performance_data['failed_rate'] / total_rate
+                ) * 100
+            else:
+                performance_data['error_percent'] = 0
+        else:
+            performance_data['error_percent'] = None
+
+        output_checkmk_section("s3_performance", performance_data)
+    except Exception as e:
+        output_checkmk_section("s3_performance", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        })
+
+
+def check_node_resources(api):
+    """Check node CPU and memory utilization"""
+    metrics = {
+        "cpu_percent": "storagegrid_node_cpu_utilization_percentage",
+        "memory_bytes": "storagegrid_node_memory_utilization_bytes"
+    }
+
+    resource_data = {
+        "timestamp": datetime.now().isoformat(),
+        "nodes": []
+    }
+
+    try:
+        for metric_key, query in metrics.items():
+            try:
+                result = api.get_metrics(query)
+                if result.get('result'):
+                    for r in result['result']:
+                        metric_labels = r.get('metric', {})
+                        node_name = metric_labels.get('instance', metric_labels.get('node_id', 'unknown'))
+                        value = float(r['value'][1])
+
+                        node_found = False
+                        for node in resource_data['nodes']:
+                            if node['node'] == node_name:
+                                node[metric_key] = value
+                                node_found = True
+                                break
+
+                        if not node_found:
+                            resource_data['nodes'].append({
+                                'node': node_name,
+                                metric_key: value
+                            })
+            except Exception:
+                pass
+
+        output_checkmk_section("resources", resource_data)
+    except Exception as e:
+        output_checkmk_section("resources", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "nodes": []
+        })
+
+
+def check_tenant_usage(api):
+    """Check tenant storage usage"""
+    usage_data = {
+        "timestamp": datetime.now().isoformat(),
+        "tenants": []
+    }
+
+    try:
+        accounts = api.get_tenant_accounts()
+
+        for account in accounts:
+            try:
+                usage = api.get_tenant_usage(account['id'])
+                tenant_info = {
+                    "account_id": account['id'],
+                    "account_name": account['name'],
+                    "data_bytes": usage.get('dataBytes', 0),
+                    "object_count": usage.get('objectCount', 0),
+                    "quota_bytes": usage.get('quotaBytes', 0)
+                }
+
+                if tenant_info['quota_bytes'] > 0:
+                    tenant_info['quota_percent'] = (
+                        tenant_info['data_bytes'] / tenant_info['quota_bytes']
+                    ) * 100
+                else:
+                    tenant_info['quota_percent'] = 0
+
+                usage_data['tenants'].append(tenant_info)
+            except Exception:
+                pass
+
+        output_checkmk_section("tenant_usage", usage_data)
+    except Exception as e:
+        output_checkmk_section("tenant_usage", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "tenants": []
+        })
+
+
+def check_ilm_metrics(api):
+    """Check ILM (Information Lifecycle Management) metrics"""
+    metrics = {
+        "scan_rate": "storagegrid_ilm_scan_rate",
+        "scan_period_minutes": "storagegrid_ilm_scan_period_estimated_minutes",
+        "awaiting_background_objects": "storagegrid_ilm_awaiting_background_objects"
+    }
+
+    ilm_data = {
+        "timestamp": datetime.now().isoformat()
+    }
+
+    try:
+        for key, query in metrics.items():
+            try:
+                result = api.get_metrics(query)
+                if result.get('result'):
+                    total = sum(float(r['value'][1]) for r in result['result'])
+                    ilm_data[key] = total
+                else:
+                    ilm_data[key] = None
+            except Exception:
+                ilm_data[key] = None
+
+        output_checkmk_section("ilm", ilm_data)
+    except Exception as e:
+        output_checkmk_section("ilm", {
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        })
+
+
+
+
+
+def main():
+    parser = argparse.ArgumentParser(description='CheckMK Special Agent for NetApp StorageGRID')
+    parser.add_argument('--hostname', required=True, help='StorageGRID hostname or IP')
+    parser.add_argument('--username', required=True, help='Grid admin username')
+    parser.add_argument('--password', required=True, help='Grid admin password')
+    parser.add_argument('--no-cert-check', action='store_true', help='Disable SSL verification')
+    parser.add_argument('--timeout', type=int, default=30, help='Request timeout in seconds')
+
+    args = parser.parse_args()
+
+    try:
+        api = StorageGridAPI(
+            args.hostname,
+            args.username,
+            args.password,
+            verify_ssl=not args.no_cert_check,
+            timeout=args.timeout
+        )
+
+        check_grid_health(api)
+        check_alerts(api)
+        check_storage_capacity(api)
+        check_s3_performance(api)
+        check_node_resources(api)
+        check_tenant_usage(api)
+        check_ilm_metrics(api)
+
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"<<<storagegrid_error:sep(0)>>>")
+        print(json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }))
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
