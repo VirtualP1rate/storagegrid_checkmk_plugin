@@ -5,6 +5,8 @@ CheckMK 2.4.0 API (agent_based v2)
 Split into separate data and metadata checks for independent alerting
 """
 
+import json
+
 from cmk.agent_based.v2 import (
     AgentSection,
     CheckPlugin,
@@ -17,7 +19,6 @@ from cmk.agent_based.v2 import (
     DiscoveryResult,
     StringTable,
 )
-import json
 
 
 def parse_storagegrid_capacity(string_table: StringTable) -> dict | None:
@@ -54,7 +55,7 @@ def check_storagegrid_data_capacity(params: dict, section: dict) -> CheckResult:
     if data_bytes is not None and usable_bytes is not None and data_percent is not None:
         # Get thresholds
         warn, crit = params.get('data_levels', (80.0, 90.0))
-        
+
         # Determine state
         if data_percent >= crit:
             state = State.CRIT
@@ -62,21 +63,21 @@ def check_storagegrid_data_capacity(params: dict, section: dict) -> CheckResult:
             state = State.WARN
         else:
             state = State.OK
-        
+
         # Build summary
         summary = f"Data capacity: {data_percent:.2f}%"
         if state != State.OK:
             summary += f" (warn/crit at {warn:.1f}%/{crit:.1f}%)"
-        
+
         yield Result(state=state, summary=summary)
-        
+
         yield Metric(
             name="data_utilization",
             value=data_percent,
             levels=(warn, crit),
             boundaries=(0, 100)
         )
-        
+
         yield Metric(
             name="data_bytes",
             value=data_bytes,
@@ -114,7 +115,7 @@ def check_storagegrid_metadata_capacity(params: dict, section: dict) -> CheckRes
     if metadata_bytes is not None and metadata_allowed is not None and metadata_percent is not None:
         # Get thresholds
         warn, crit = params.get('metadata_levels', (70.0, 80.0))
-        
+
         # Determine state
         if metadata_percent >= crit:
             state = State.CRIT
@@ -122,21 +123,21 @@ def check_storagegrid_metadata_capacity(params: dict, section: dict) -> CheckRes
             state = State.WARN
         else:
             state = State.OK
-        
+
         # Build summary
         summary = f"Metadata capacity: {metadata_percent:.2f}%"
         if state != State.OK:
             summary += f" (warn/crit at {warn:.1f}%/{crit:.1f}%)"
-        
+
         yield Result(state=state, summary=summary)
-        
+
         yield Metric(
             name="metadata_utilization",
             value=metadata_percent,
             levels=(warn, crit),
             boundaries=(0, 100)
         )
-        
+
         yield Metric(
             name="metadata_bytes",
             value=metadata_bytes,

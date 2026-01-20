@@ -4,6 +4,8 @@ CheckMK Check Plugin for StorageGRID Node Health
 CheckMK 2.4.0 API (agent_based v2)
 """
 
+import json
+
 from cmk.agent_based.v2 import (
     AgentSection,
     CheckPlugin,
@@ -14,7 +16,6 @@ from cmk.agent_based.v2 import (
     DiscoveryResult,
     StringTable,
 )
-import json
 
 
 def parse_storagegrid_health(string_table: StringTable) -> dict | None:

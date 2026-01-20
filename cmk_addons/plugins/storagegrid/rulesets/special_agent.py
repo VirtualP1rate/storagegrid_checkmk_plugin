@@ -60,7 +60,10 @@ def _formspec():
                     title=Title("Request Timeout"),
                     help_text=Help("Timeout in seconds for API requests"),
                     prefill=DefaultValue(30),
-                    custom_validate=(lambda v: None if 5 <= v <= 300 else ValueError("Timeout must be between 5 and 300 seconds")),
+                    custom_validate=(
+                        lambda v: None if 5 <= v <= 300
+                        else ValueError("Timeout must be between 5 and 300 seconds")
+                    ),
                     unit_symbol="seconds",
                 ),
             ),

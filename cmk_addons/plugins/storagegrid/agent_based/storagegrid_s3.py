@@ -4,6 +4,8 @@ CheckMK Check Plugin for StorageGRID S3 Performance
 CheckMK 2.4.0 API (agent_based v2)
 """
 
+import json
+
 from cmk.agent_based.v2 import (
     AgentSection,
     CheckPlugin,
@@ -12,12 +14,10 @@ from cmk.agent_based.v2 import (
     State,
     Metric,
     check_levels,
-    render,
     CheckResult,
     DiscoveryResult,
     StringTable,
 )
-import json
 
 
 def parse_storagegrid_s3_performance(string_table: StringTable) -> dict | None:
