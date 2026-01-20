@@ -59,6 +59,13 @@ cp -v cmk_addons/plugins/storagegrid/server_side_calls/special_agent.py "${PLUGI
 # Agent-based check plugins
 cp -v cmk_addons/plugins/storagegrid/agent_based/*.py "${PLUGIN_DIR}/agent_based/"
 
+# Python package __init__.py files (required for module discovery)
+echo "Installing Python package files..."
+cp -v cmk_addons/__init__.py "${OMD_ROOT}/local/lib/python3/cmk_addons/"
+mkdir -p "${OMD_ROOT}/local/lib/python3/cmk_addons/plugins"
+cp -v cmk_addons/plugins/__init__.py "${OMD_ROOT}/local/lib/python3/cmk_addons/plugins/"
+cp -v cmk_addons/plugins/storagegrid/__init__.py "${PLUGIN_DIR}/"
+
 # Set ownership
 echo "Setting file ownership..."
 chown -R "${SITE_NAME}:${SITE_NAME}" "${OMD_ROOT}/local/"
