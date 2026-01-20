@@ -33,8 +33,9 @@ def _agent_storagegrid_arguments(
 
     args: list[str] = []
 
-    # Hostname - use the host's name or IP
-    args.extend(["--hostname", host_config.name])
+    # Hostname - use the host's IP address if available, otherwise use name
+    hostname = host_config.primary_ip_config.address or host_config.name
+    args.extend(["--hostname", hostname])
 
     # Username
     args.extend(["--username", params.username])
