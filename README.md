@@ -383,13 +383,11 @@ See [SAFETY.md](SAFETY.md) for detailed rollback options.
 - **StorageGRID API**: Sign in to Grid Manager → Help → API documentation
 - **StorageGRID Docs**: https://docs.netapp.com/us-en/storagegrid/
 - **CheckMK Docs**: https://docs.checkmk.com/
-- **Plugin API Reference**: [storagegrid-api-documentation.md](storagegrid-api-documentation.md)
 
 ### Plugin Documentation
 
 - **[SAFETY.md](SAFETY.md)** - Installation safety and rollback procedures
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
-- **[storagegrid-api-documentation.md](storagegrid-api-documentation.md)** - Complete StorageGRID REST API v4 reference
 
 ### Plugin Information
 
