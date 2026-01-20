@@ -4,6 +4,8 @@ CheckMK Check Plugin for StorageGRID Node Resources
 CheckMK 2.4.0 API (agent_based v2)
 """
 
+import json
+
 from cmk.agent_based.v2 import (
     AgentSection,
     CheckPlugin,
@@ -15,7 +17,6 @@ from cmk.agent_based.v2 import (
     DiscoveryResult,
     StringTable,
 )
-import json
 
 
 def parse_storagegrid_resources(string_table: StringTable) -> dict | None:
@@ -60,7 +61,7 @@ def check_storagegrid_node_resources(item: str, params: dict, section: dict) -> 
         if cpu_percent is not None:
             # Get thresholds
             warn, crit = params.get('cpu_levels', (80.0, 90.0))
-            
+
             # Determine state
             if cpu_percent >= crit:
                 state = State.CRIT
@@ -68,14 +69,14 @@ def check_storagegrid_node_resources(item: str, params: dict, section: dict) -> 
                 state = State.WARN
             else:
                 state = State.OK
-            
+
             # Build summary
             summary = f"CPU: {cpu_percent:.1f}%"
             if state != State.OK:
                 summary += f" (warn/crit at {warn:.1f}%/{crit:.1f}%)"
-            
+
             yield Result(state=state, summary=summary)
-            
+
             yield Metric(
                 name="cpu_utilization",
                 value=cpu_percent,

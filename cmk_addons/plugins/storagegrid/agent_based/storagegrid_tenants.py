@@ -4,6 +4,8 @@ CheckMK Check Plugin for StorageGRID Tenant Usage
 CheckMK 2.4.0 API (agent_based v2)
 """
 
+import json
+
 from cmk.agent_based.v2 import (
     AgentSection,
     CheckPlugin,
@@ -16,7 +18,6 @@ from cmk.agent_based.v2 import (
     DiscoveryResult,
     StringTable,
 )
-import json
 
 
 def parse_storagegrid_tenant_usage(string_table: StringTable) -> dict | None:
@@ -66,7 +67,7 @@ def check_storagegrid_tenant_usage(item: str, params: dict, section: dict) -> Ch
         if quota_bytes > 0:
             # Get thresholds
             warn, crit = params.get('quota_levels', (80.0, 90.0))
-            
+
             # Determine state
             if quota_percent >= crit:
                 state = State.CRIT
@@ -74,14 +75,14 @@ def check_storagegrid_tenant_usage(item: str, params: dict, section: dict) -> Ch
                 state = State.WARN
             else:
                 state = State.OK
-            
+
             # Build summary with object count
             summary = f"Quota usage: {quota_percent:.2f}%, {object_count:,} objects"
             if state != State.OK:
                 summary += f" (warn/crit at {warn:.1f}%/{crit:.1f}%)"
-            
+
             yield Result(state=state, summary=summary)
-            
+
             yield Metric(
                 name="quota_utilization",
                 value=quota_percent,
