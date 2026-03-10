@@ -81,8 +81,10 @@ def check_storagegrid_s3_performance(params: dict, section: dict) -> CheckResult
                     state=State.OK,
                     notice=f"Total request rate: {total_rate:.2f} req/s"
                 )
-    else:
-        yield Result(state=State.OK, summary="No S3 traffic detected")
+            else:
+                yield Result(state=State.OK, summary="No S3 traffic (0 req/s)")
+    elif successful_rate is None and failed_rate is None:
+        yield Result(state=State.UNKNOWN, summary="No S3 metrics data returned by API")
 
 
 agent_section_storagegrid_s3_performance = AgentSection(
