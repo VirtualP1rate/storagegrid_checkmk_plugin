@@ -351,7 +351,7 @@ def check_tenant_usage(api):
         for account in accounts:
             try:
                 usage = api.get_tenant_usage(account['id'])
-                quota_bytes = account.get('policy', {}).get('quota', {}).get('objectBytes', 0)
+                quota_bytes = account.get('policy', {}).get('quotaObjectBytes', 0)
                 tenant_info = {
                     "account_id": account['id'],
                     "account_name": account['name'],
