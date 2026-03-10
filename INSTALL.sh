@@ -52,7 +52,7 @@ cp -v cmk_addons/plugins/storagegrid/libexec/agent_storagegrid "${PLUGIN_DIR}/li
 chmod +x "${PLUGIN_DIR}/libexec/agent_storagegrid"
 
 # Rulesets (GUI configuration)
-cp -v cmk_addons/plugins/storagegrid/rulesets/special_agent.py "${PLUGIN_DIR}/rulesets/"
+cp -v cmk_addons/plugins/storagegrid/rulesets/*.py "${PLUGIN_DIR}/rulesets/"
 
 # Server-side calls (agent invocation)
 cp -v cmk_addons/plugins/storagegrid/server_side_calls/special_agent.py "${PLUGIN_DIR}/server_side_calls/"
