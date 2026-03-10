@@ -68,7 +68,7 @@ def check_storagegrid_s3_performance(params: dict, section: dict) -> CheckResult
     if error_percent is not None:
         yield from check_levels(
             value=error_percent,
-            levels_upper=params.get('error_rate_levels', (1.0, 5.0)),
+            levels_upper=("fixed", params.get('error_rate_levels', (1.0, 5.0))),
             metric_name="error_rate",
             label="Error rate",
             render_func=lambda v: f"{v:.2f}%",
@@ -81,8 +81,10 @@ def check_storagegrid_s3_performance(params: dict, section: dict) -> CheckResult
                     state=State.OK,
                     notice=f"Total request rate: {total_rate:.2f} req/s"
                 )
-    else:
-        yield Result(state=State.OK, summary="No S3 traffic detected")
+            else:
+                yield Result(state=State.OK, summary="No S3 traffic (0 req/s)")
+    elif successful_rate is None and failed_rate is None:
+        yield Result(state=State.UNKNOWN, summary="No S3 metrics data returned by API")
 
 
 agent_section_storagegrid_s3_performance = AgentSection(
@@ -96,7 +98,7 @@ check_plugin_storagegrid_s3_performance = CheckPlugin(
     discovery_function=discover_storagegrid_s3_performance,
     check_function=check_storagegrid_s3_performance,
     check_default_parameters={
-        'error_rate_levels': (1.0, 5.0),
+        'error_rate_levels': (1.0, 5.0),  # (warn%, crit%) wrapped as ("fixed", ...) at call site
     },
     check_ruleset_name="storagegrid_s3_performance",
     sections=["storagegrid_s3_performance"],

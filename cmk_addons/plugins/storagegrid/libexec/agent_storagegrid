@@ -252,8 +252,8 @@ def check_storage_capacity(api):
 def check_s3_performance(api):
     """Check S3 performance metrics"""
     metrics = {
-        "successful_rate": "storagegrid_s3_successful_request_rate",
-        "failed_rate": "storagegrid_s3_failed_request_rate"
+        "successful_rate": "rate(storagegrid_s3_operations_successful[5m])",
+        "failed_rate": "rate(storagegrid_s3_operations_failed[5m])"
     }
 
     performance_data = {
