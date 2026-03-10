@@ -10,7 +10,7 @@ from cmk.rulesets.v1.form_specs import (
     DictElement,
     SimpleLevels,
     LevelDirection,
-    Percentage,
+    Float,
     DefaultValue,
 )
 from cmk.rulesets.v1.rule_specs import CheckParameters, Topic, HostCondition
@@ -27,7 +27,7 @@ def _formspec_s3_performance():
         elements={
             "error_rate_levels": DictElement(
                 required=False,
-                parameter_form=SimpleLevels(
+                parameter_form=SimpleLevels[float](
                     title=Title("S3 Error Rate"),
                     help_text=Help(
                         "Percentage of S3 requests that returned an error (4xx/5xx). "
@@ -36,7 +36,7 @@ def _formspec_s3_performance():
                         "frequent benign client errors."
                     ),
                     level_direction=LevelDirection.UPPER,
-                    form_spec_template=Percentage(),
+                    form_spec_template=Float(unit_symbol="%"),
                     prefill_fixed_levels=DefaultValue((1.0, 5.0)),
                 ),
             ),
