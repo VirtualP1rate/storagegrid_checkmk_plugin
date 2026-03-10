@@ -76,8 +76,12 @@ def check_storagegrid_tenant_usage(item: str, params: dict, section: dict) -> Ch
             else:
                 state = State.OK
 
-            # Build summary with object count
-            summary = f"Quota usage: {quota_percent:.2f}%, {object_count:,} objects"
+            # Build summary with size and object count
+            summary = (
+                f"Quota usage: {quota_percent:.2f}%, "
+                f"Used: {render.bytes(data_bytes)} / {render.bytes(quota_bytes)}, "
+                f"{object_count:,} objects"
+            )
             if state != State.OK:
                 summary += f" (warn/crit at {warn:.1f}%/{crit:.1f}%)"
 
@@ -88,11 +92,6 @@ def check_storagegrid_tenant_usage(item: str, params: dict, section: dict) -> Ch
                 value=quota_percent,
                 levels=(warn, crit),
                 boundaries=(0, 100)
-            )
-
-            yield Result(
-                state=State.OK,
-                notice=f"Used: {render.bytes(data_bytes)} / {render.bytes(quota_bytes)}"
             )
         else:
             yield Result(

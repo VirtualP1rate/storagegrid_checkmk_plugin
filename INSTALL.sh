@@ -42,6 +42,7 @@ mkdir -p "${PLUGIN_DIR}/libexec"
 mkdir -p "${PLUGIN_DIR}/rulesets"
 mkdir -p "${PLUGIN_DIR}/server_side_calls"
 mkdir -p "${PLUGIN_DIR}/agent_based"
+mkdir -p "${PLUGIN_DIR}/graphing"
 
 # Copy files
 echo "Installing plugin files..."
@@ -58,6 +59,9 @@ cp -v cmk_addons/plugins/storagegrid/server_side_calls/special_agent.py "${PLUGI
 
 # Agent-based check plugins
 cp -v cmk_addons/plugins/storagegrid/agent_based/*.py "${PLUGIN_DIR}/agent_based/"
+
+# Graph templates
+cp -v cmk_addons/plugins/storagegrid/graphing/*.py "${PLUGIN_DIR}/graphing/"
 
 # Python package __init__.py files (required for module discovery)
 echo "Installing Python package files..."
